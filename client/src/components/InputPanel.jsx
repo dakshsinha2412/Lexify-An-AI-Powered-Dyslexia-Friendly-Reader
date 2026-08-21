@@ -12,7 +12,8 @@ export default function InputPanel({ inputText, setInputText, onSimplify, loadin
         if (!urlInput.trim()) return;
         setExtracting(true);
         try {
-            const resp = await fetch(`/api/fetch-url?url=${encodeURIComponent(urlInput)}`);
+            const apiHost = import.meta.env.VITE_API_URL || '';
+            const resp = await fetch(`${apiHost}/api/fetch-url?url=${encodeURIComponent(urlInput)}`);
             let data;
             try {
                 data = await resp.json();
@@ -51,11 +52,12 @@ export default function InputPanel({ inputText, setInputText, onSimplify, loadin
             const formData = new FormData();
             formData.append('file', file);
 
+            const apiHost = import.meta.env.VITE_API_URL || '';
             let endpoint = '';
             if (file.type === 'application/pdf' || file.name.endsWith('.pdf')) {
-                endpoint = '/api/parse-pdf';
+                endpoint = `${apiHost}/api/parse-pdf`;
             } else if (file.type.startsWith('image/')) {
-                endpoint = '/api/ocr-image';
+                endpoint = `${apiHost}/api/ocr-image`;
             } else {
                 alert('Unsupported file type. Please upload a PDF, image, or text file.');
                 setExtracting(false);
