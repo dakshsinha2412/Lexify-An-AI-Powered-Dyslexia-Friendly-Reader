@@ -61,7 +61,8 @@ function App() {
     }
 
     try {
-      const response = await fetch('/api/simplify', {
+      const apiHost = import.meta.env.VITE_API_URL || '';
+      const response = await fetch(`${apiHost}/api/simplify`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: textToProcess, mode: targetMode }),
@@ -118,12 +119,12 @@ function App() {
   return (
     <div className={`min-h-screen flex flex-col transition-all duration-500 ${themeClasses[theme] || 'bg-[#F5F5F7]'} ${focusMode ? 'pt-0' : 'pt-16'}`}>
       {!focusMode && (
-        <Header 
-          onToggleFocus={() => setFocusMode(true)} 
-          onGoHome={() => setShowLanding(true)} 
+        <Header
+          onToggleFocus={() => setFocusMode(true)}
+          onGoHome={() => setShowLanding(true)}
         />
       )}
-      
+
       {!focusMode && (
         <SettingsBar
           useDyslexicFont={useDyslexicFont} setUseDyslexicFont={setUseDyslexicFont}
@@ -157,7 +158,7 @@ function App() {
               Lexified result
             </h2>
             {focusMode && (
-              <button 
+              <button
                 onClick={() => setFocusMode(false)}
                 className="px-4 py-2 bg-white border border-[#E2E8F0] rounded-xl text-sm font-medium text-[#555555] hover:text-[#4A90E2] transition-all shadow-sm"
               >

@@ -4,7 +4,7 @@ const { GoogleGenerativeAI } = require('@google/generative-ai');
 const { calculateFleschKincaid } = require('../utils/readability');
 require('dotenv').config();
 require('dotenv').config({ path: require('path').resolve(__dirname, '../.env') });
-require('dotenv').config({ path: require('path').resolve(__dirname, '../../.env') }); 
+require('dotenv').config({ path: require('path').resolve(__dirname, '../../.env') });
 
 const COMMON_GLOSSARY_MAP = {
     "ubiquitous": "present or found everywhere",
@@ -25,9 +25,9 @@ const COMMON_GLOSSARY_MAP = {
 
 function generateFallbackSimplification(text, mode) {
     const sentences = text.match(/[^.!?]+[.!?]+/g) || [text];
-    
+
     if (mode === 'bullets') {
-        const bullets = sentences.slice(0, 8).map(s => `• ${s.trim()}`).join('\n');
+        const bullets = sentences.map(s => `• ${s.trim()}`).slice(0, 7).join('\n');
         return {
             simplifiedText: bullets || `• ${text.trim()}`,
             glossary: []
@@ -42,19 +42,34 @@ function generateFallbackSimplification(text, mode) {
         };
     }
 
-    // Default 'simplified' mode
+    // Default 'simplified' mode: split into shorter sentences, swap complex words for easy synonyms
+    const replacements = [
+        [/\bubiquitous\b/gi, 'common'],
+        [/\bharnesses\b/gi, 'uses'],
+        [/\brequirements\b/gi, 'needs'],
+        [/\bimplementing\b/gi, 'building'],
+        [/\bimplementation\b/gi, 'setup'],
+        [/\bfacilitate\b/gi, 'help'],
+        [/\butilize\b/gi, 'use'],
+        [/\butilizes\b/gi, 'uses'],
+        [/\bprofound\b/gi, 'deep'],
+        [/\bconceptual\b/gi, 'idea-based'],
+        [/\bdifficulties\b/gi, 'challenges'],
+        [/\bemerging\b/gi, 'new'],
+        [/\bparadigm\b/gi, 'pattern'],
+        [/\bcomputation\b/gi, 'calculation']
+    ];
+
     let simplifiedSentences = sentences.map(sentence => {
         let s = sentence.trim();
-        s = s.replace(/ubiquitous nature/gi, 'common presence');
-        s = s.replace(/harnesses the laws/gi, 'uses the rules');
-        s = s.replace(/rapidly-emerging/gi, 'fast-growing');
-        s = s.replace(/profound conceptual difficulties/gi, 'big challenges to understand');
+        replacements.forEach(([pattern, replacement]) => {
+            s = s.replace(pattern, replacement);
+        });
         return s;
     });
 
     const simplifiedText = simplifiedSentences.join(' ');
-    
-    // Build glossary
+
     const words = text.toLowerCase().match(/\b[a-z]{5,}\b/g) || [];
     const glossaryMap = new Map();
 
@@ -130,14 +145,14 @@ router.post('/', async (req, res) => {
         for (const modelName of modelsToTry) {
             try {
                 const model = genAI.getGenerativeModel({
-                    model: modelName, 
+                    model: modelName,
                     generationConfig: { responseMimeType: "application/json" }
                 });
 
                 const prompt = `${systemPrompt}\n\nText:\n${text}`;
                 const response = await model.generateContent(prompt);
                 const resultText = response.response.text().trim();
-                
+
                 parsedData = JSON.parse(resultText);
                 break; // Successfully obtained response
             } catch (err) {
