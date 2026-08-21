@@ -69,9 +69,9 @@ app.post('/api/ocr-image', upload.single('file'), async (req, res) => {
     res.json({ text: extractedText });
   } catch (error) {
     console.error('OCR Error Details:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'Failed to extract text from image',
-      details: error.message 
+      details: error.message
     });
   }
 });
@@ -99,7 +99,7 @@ app.get('/api/fetch-url', async (req, res) => {
   if (!/^https?:\/\//i.test(url)) {
     url = 'https://' + url;
   }
-  
+
   try {
     const response = await fetch(url, {
       headers: {
@@ -112,16 +112,16 @@ app.get('/api/fetch-url', async (req, res) => {
     }
     const html = await response.text();
     const $ = cheerio.load(html);
-    
+
     // Remove script, style, navigation and layout tags
     $('script, style, noscript, iframe, nav, footer, header, svg, form').remove();
-    
+
     // Extract main text content
     let text = $('article, main, .content, #content, body').text().replace(/\s+/g, ' ').trim();
     if (text.length > 5000) {
       text = text.substring(0, 5000) + '...';
     }
-    
+
     if (!text) {
       return res.status(400).json({ error: 'Could not extract readable text from the specified URL.' });
     }
@@ -142,11 +142,10 @@ app.use((req, res) => {
   res.sendFile(path.join(clientBuildPath, 'index.html'));
 });
 
-if (process.env.NODE_ENV !== 'production') {
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Server is running on port ${PORT}`);
-  });
-}
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`Server is running on port ${PORT}`);
+});
 
 module.exports = app;
+
 
