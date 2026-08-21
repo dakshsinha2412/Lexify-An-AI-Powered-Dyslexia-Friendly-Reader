@@ -1,0 +1,82 @@
+@import "tailwindcss";
+@import url('https://fonts.cdnfonts.com/css/sf-pro-display');
+
+:root {
+  --apple-bg: #F5F5F7;
+  --apple-card-bg: rgba(255, 255, 255, 0.85);
+  --apple-border: #E5E5E7;
+  --apple-blue: #0071E3;
+  --apple-blue-hover: #0077ED;
+  --apple-text-primary: #1D1D1F;
+  --apple-text-secondary: #86868B;
+}
+
+* {
+  font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  background-color: #F5F5F7;
+  color: #1D1D1F;
+  font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro', sans-serif !important;
+}
+
+.font-lexy, .font-sans {
+  font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro', sans-serif !important;
+}
+
+/* Apple Glassmorphism & Card Styles */
+.apple-glass {
+  background: rgba(255, 255, 255, 0.75);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(229, 229, 231, 0.8);
+}
+
+.apple-card {
+  background: #FFFFFF;
+  border: 1px solid #E5E5E7;
+  border-radius: 24px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.apple-card:hover {
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.07);
+}
+
+.apple-btn-primary {
+  background-color: #0071E3;
+  color: #FFFFFF;
+  border-radius: 980px;
+  font-weight: 500;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.apple-btn-primary:hover {
+  background-color: #0077ED;
+  box-shadow: 0 4px 14px rgba(0, 113, 227, 0.3);
+  transform: scale(1.01);
+}
+
+.apple-btn-primary:active {
+  transform: scale(0.98);
+}
+
+/* Custom scrollbars Apple style */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent; 
+}
+::-webkit-scrollbar-thumb {
+  background: #D2D2D7; 
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #86868B; 
+}
