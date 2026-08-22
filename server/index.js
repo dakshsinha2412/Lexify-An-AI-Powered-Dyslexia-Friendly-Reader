@@ -76,14 +76,28 @@ app.post('/api/ocr-image', upload.single('file'), async (req, res) => {
   }
 });
 
+async function parsePdfBuffer(buffer) {
+  if (typeof pdfParse === 'function') {
+    return await pdfParse(buffer);
+  } else if (pdfParse && typeof pdfParse.default === 'function') {
+    return await pdfParse.default(buffer);
+  } else if (pdfParse && typeof pdfParse.PDFParse === 'function') {
+    const instance = new pdfParse.PDFParse();
+    if (typeof instance.parse === 'function') {
+      return await instance.parse(buffer);
+    }
+  }
+  throw new Error('PDF parsing module export format is not supported.');
+}
+
 // PDF Parsing (keeps pdf-parse, but backend is now more modular)
 app.post('/api/parse-pdf', upload.single('file'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No PDF file was uploaded.' });
     }
-    const data = await pdfParse(req.file.buffer);
-    const text = data.text ? data.text.trim() : '';
+    const data = await parsePdfBuffer(req.file.buffer);
+    const text = data && data.text ? data.text.trim() : '';
     if (!text) {
       return res.status(400).json({ error: 'No readable text could be extracted from this PDF. It may be empty or contain scanned images.' });
     }
