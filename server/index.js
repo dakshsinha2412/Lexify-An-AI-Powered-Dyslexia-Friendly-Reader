@@ -80,13 +80,17 @@ app.post('/api/ocr-image', upload.single('file'), async (req, res) => {
 app.post('/api/parse-pdf', upload.single('file'), async (req, res) => {
   try {
     if (!req.file) {
-      return res.status(400).json({ error: 'No file uploaded' });
+      return res.status(400).json({ error: 'No PDF file was uploaded.' });
     }
     const data = await pdfParse(req.file.buffer);
-    res.json({ text: data.text });
+    const text = data.text ? data.text.trim() : '';
+    if (!text) {
+      return res.status(400).json({ error: 'No readable text could be extracted from this PDF. It may be empty or contain scanned images.' });
+    }
+    res.json({ text });
   } catch (error) {
     console.error('PDF Parse Error:', error);
-    res.status(500).json({ error: 'Failed to parse PDF file' });
+    res.status(500).json({ error: 'Failed to parse PDF file: ' + error.message });
   }
 });
 
@@ -96,6 +100,7 @@ app.get('/api/fetch-url', async (req, res) => {
     return res.status(400).json({ error: 'Missing url query parameter' });
   }
 
+  url = url.trim();
   if (!/^https?:\/\//i.test(url)) {
     url = 'https://' + url;
   }
@@ -103,8 +108,9 @@ app.get('/api/fetch-url', async (req, res) => {
   try {
     const response = await fetch(url, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.9'
       }
     });
     if (!response.ok) {
@@ -114,19 +120,43 @@ app.get('/api/fetch-url', async (req, res) => {
     const $ = cheerio.load(html);
 
     // Remove script, style, navigation and layout tags
-    $('script, style, noscript, iframe, nav, footer, header, svg, form').remove();
+    $('script, style, noscript, iframe, nav, footer, header, svg, form, button, [role="navigation"], [role="banner"]').remove();
 
-    // Extract main text content
-    let text = $('article, main, .content, #content, body').text().replace(/\s+/g, ' ').trim();
-    if (text.length > 5000) {
-      text = text.substring(0, 5000) + '...';
+    // Strategy 1: Main article or content container
+    let extractedText = '';
+    const mainEl = $('article, main, [role="main"], .post-content, .article-content, .entry-content').first();
+    if (mainEl.length > 0) {
+      extractedText = mainEl.text().replace(/\s+/g, ' ').trim();
     }
 
-    if (!text) {
+    // Strategy 2: If main content is empty or very short, collect paragraph text
+    if (!extractedText || extractedText.length < 100) {
+      const paragraphs = [];
+      $('p').each((_, el) => {
+        const pText = $(el).text().replace(/\s+/g, ' ').trim();
+        if (pText.length > 30) {
+          paragraphs.push(pText);
+        }
+      });
+      if (paragraphs.length > 0) {
+        extractedText = paragraphs.join('\n\n');
+      }
+    }
+
+    // Strategy 3: Fall back to body text
+    if (!extractedText || extractedText.length < 50) {
+      extractedText = $('body').text().replace(/\s+/g, ' ').trim();
+    }
+
+    if (extractedText.length > 8000) {
+      extractedText = extractedText.substring(0, 8000) + '...';
+    }
+
+    if (!extractedText || extractedText.length < 10) {
       return res.status(400).json({ error: 'Could not extract readable text from the specified URL.' });
     }
 
-    res.json({ text });
+    res.json({ text: extractedText });
   } catch (error) {
     console.error('Fetch URL Error:', error);
     res.status(500).json({ error: 'Failed to fetch contents from the URL: ' + error.message });

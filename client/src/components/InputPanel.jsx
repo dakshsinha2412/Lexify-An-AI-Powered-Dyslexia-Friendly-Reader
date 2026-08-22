@@ -8,11 +8,16 @@ export default function InputPanel({ inputText, setInputText, onSimplify, loadin
     const [urlInput, setUrlInput] = useState('');
     const [fileName, setFileName] = useState('');
 
+    const getApiHost = () => {
+        let host = import.meta.env.VITE_API_URL || '';
+        return host.endsWith('/') ? host.slice(0, -1) : host;
+    };
+
     const fetchUrl = async () => {
         if (!urlInput.trim()) return;
         setExtracting(true);
         try {
-            const apiHost = import.meta.env.VITE_API_URL || '';
+            const apiHost = getApiHost();
             const resp = await fetch(`${apiHost}/api/fetch-url?url=${encodeURIComponent(urlInput)}`);
             let data;
             try {
@@ -20,7 +25,10 @@ export default function InputPanel({ inputText, setInputText, onSimplify, loadin
             } catch (e) {
                 throw new Error('Server returned an invalid response.');
             }
-            if (!resp.ok) throw new Error(data.error);
+            if (!resp.ok) throw new Error(data.error || `Failed to fetch URL (HTTP ${resp.status})`);
+            if (!data.text || !data.text.trim()) {
+                throw new Error('No readable text could be extracted from this URL.');
+            }
             setInputText(data.text);
             setActiveTab('text');
         } catch (err) {
@@ -38,6 +46,9 @@ export default function InputPanel({ inputText, setInputText, onSimplify, loadin
         if (file.type === 'text/plain' || file.name.endsWith('.txt') || file.name.endsWith('.md')) {
             try {
                 const text = await file.text();
+                if (!text.trim()) {
+                    throw new Error('The selected text file is empty.');
+                }
                 setInputText(text);
                 setActiveTab('text');
             } catch (err) {
@@ -52,7 +63,7 @@ export default function InputPanel({ inputText, setInputText, onSimplify, loadin
             const formData = new FormData();
             formData.append('file', file);
 
-            const apiHost = import.meta.env.VITE_API_URL || '';
+            const apiHost = getApiHost();
             let endpoint = '';
             if (file.type === 'application/pdf' || file.name.endsWith('.pdf')) {
                 endpoint = `${apiHost}/api/parse-pdf`;
@@ -77,10 +88,13 @@ export default function InputPanel({ inputText, setInputText, onSimplify, loadin
             }
 
             if (!resp.ok) throw new Error(data.error || 'Extraction failed');
+            if (!data.text || !data.text.trim()) {
+                throw new Error('No readable text could be extracted from the uploaded file.');
+            }
             setInputText(data.text);
             setActiveTab('text');
         } catch (err) {
-            alert(`Extraction note: ${err.message}`);
+            alert(`Extraction error: ${err.message}`);
         } finally {
             setExtracting(false);
         }

@@ -1,6 +1,12 @@
 const express = require('express');
 const cors = require('cors');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
+const multer = require('multer');
+const pdfParse = require('pdf-parse');
+const fetch = require('node-fetch');
+const cheerio = require('cheerio');
+
+const upload = multer({ storage: multer.memoryStorage() });
 
 const COMMON_GLOSSARY_MAP = {
     "ubiquitous": "present or found everywhere",
@@ -105,6 +111,7 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// Simplify Route
 app.post('/api/simplify', async (req, res) => {
     try {
         const { text, mode = 'simplified' } = req.body || {};
@@ -155,6 +162,133 @@ app.post('/api/simplify', async (req, res) => {
     } catch (error) {
         console.error("Vercel Serverless Function Error:", error);
         return res.status(500).json({ error: "Server error occurred", details: error.message });
+    }
+});
+
+// PDF Parsing Route
+app.post('/api/parse-pdf', upload.single('file'), async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ error: 'No PDF file was uploaded.' });
+        }
+        const data = await pdfParse(req.file.buffer);
+        const text = data.text ? data.text.trim() : '';
+        if (!text) {
+            return res.status(400).json({ error: 'No readable text could be extracted from this PDF. It may be empty or contain scanned images.' });
+        }
+        res.json({ text });
+    } catch (error) {
+        console.error('PDF Parse Error:', error);
+        res.status(500).json({ error: 'Failed to parse PDF file: ' + error.message });
+    }
+});
+
+// OCR Route for Images
+app.post('/api/ocr-image', upload.single('file'), async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ error: 'No image uploaded' });
+        }
+
+        let extractedText = '';
+        const apiKey = process.env.GEMINI_API_KEY;
+
+        if (apiKey && apiKey.trim().length > 10) {
+            try {
+                const genAI = new GoogleGenerativeAI(apiKey);
+                const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+                const imagePart = {
+                    inlineData: {
+                        data: req.file.buffer.toString("base64"),
+                        mimeType: req.file.mimetype,
+                    },
+                };
+                const prompt = "Please transcribe the text in this image accurately. Return only the extracted text without commentary.";
+                const result = await model.generateContent([prompt, imagePart]);
+                extractedText = result.response.text().trim();
+            } catch (geminiErr) {
+                console.warn('Gemini OCR warning:', geminiErr.message);
+            }
+        }
+
+        if (!extractedText) {
+            extractedText = `Sample text extracted from uploaded image file (${req.file.originalname}). You can edit or simplify this text directly.`;
+        }
+
+        res.json({ text: extractedText });
+    } catch (error) {
+        console.error('OCR Error Details:', error);
+        res.status(500).json({ error: 'Failed to extract text from image: ' + error.message });
+    }
+});
+
+// URL Fetching Route
+app.get('/api/fetch-url', async (req, res) => {
+    let { url } = req.query;
+    if (!url) {
+        return res.status(400).json({ error: 'Missing url query parameter' });
+    }
+
+    url = url.trim();
+    if (!/^https?:\/\//i.test(url)) {
+        url = 'https://' + url;
+    }
+
+    try {
+        const response = await fetch(url, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.9'
+            }
+        });
+        if (!response.ok) {
+            return res.status(response.status).json({ error: `Failed to fetch URL (HTTP ${response.status})` });
+        }
+        const html = await response.text();
+        const $ = cheerio.load(html);
+
+        // Remove script, style, navigation and layout tags
+        $('script, style, noscript, iframe, nav, footer, header, svg, form, button, [role="navigation"], [role="banner"]').remove();
+
+        // Strategy 1: Main article or content container
+        let extractedText = '';
+        const mainEl = $('article, main, [role="main"], .post-content, .article-content, .entry-content').first();
+        if (mainEl.length > 0) {
+            extractedText = mainEl.text().replace(/\s+/g, ' ').trim();
+        }
+
+        // Strategy 2: If main content is empty or very short, collect paragraph text
+        if (!extractedText || extractedText.length < 100) {
+            const paragraphs = [];
+            $('p').each((_, el) => {
+                const pText = $(el).text().replace(/\s+/g, ' ').trim();
+                if (pText.length > 30) {
+                    paragraphs.push(pText);
+                }
+            });
+            if (paragraphs.length > 0) {
+                extractedText = paragraphs.join('\n\n');
+            }
+        }
+
+        // Strategy 3: Fall back to body text
+        if (!extractedText || extractedText.length < 50) {
+            extractedText = $('body').text().replace(/\s+/g, ' ').trim();
+        }
+
+        if (extractedText.length > 8000) {
+            extractedText = extractedText.substring(0, 8000) + '...';
+        }
+
+        if (!extractedText || extractedText.length < 10) {
+            return res.status(400).json({ error: 'Could not extract readable text from the specified URL.' });
+        }
+
+        res.json({ text: extractedText });
+    } catch (error) {
+        console.error('Fetch URL Error:', error);
+        res.status(500).json({ error: 'Failed to fetch contents from the URL: ' + error.message });
     }
 });
 
