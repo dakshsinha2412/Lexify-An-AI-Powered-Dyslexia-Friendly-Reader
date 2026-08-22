@@ -14,11 +14,29 @@ document.addEventListener('DOMContentLoaded', () => {
     const ttsBtn = document.getElementById('ttsBtn');
     const clearBtn = document.getElementById('clearBtn');
     const errorMsg = document.getElementById('error-msg');
+    const serverUrlInput = document.getElementById('serverUrlInput');
     const logo = document.querySelector('.logo');
+
+    // Load saved server URL
+    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.sync) {
+        chrome.storage.sync.get(['serverUrl'], (result) => {
+            if (serverUrlInput) {
+                serverUrlInput.value = result.serverUrl || 'http://localhost:5000';
+            }
+        });
+
+        if (serverUrlInput) {
+            serverUrlInput.addEventListener('change', (e) => {
+                const url = e.target.value.trim();
+                chrome.storage.sync.set({ serverUrl: url });
+            });
+        }
+    }
 
     // Open Landing Page on logo click
     logo.addEventListener('click', () => {
-        chrome.tabs.create({ url: 'http://localhost:5000' });
+        const targetUrl = serverUrlInput ? serverUrlInput.value.trim() : 'http://localhost:5000';
+        chrome.tabs.create({ url: targetUrl });
     });
 
     // Auto-scan page text on popup open

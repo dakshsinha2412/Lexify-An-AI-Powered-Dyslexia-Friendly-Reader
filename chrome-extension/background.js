@@ -1,8 +1,18 @@
-// ── Configuration ─────────────────────────────────────────────────────────
-// Change this to your Render production URL when deploying, e.g:
-// const BASE_URL = "https://your-app.onrender.com";
-const BASE_URL = "http://localhost:5000";
-// ──────────────────────────────────────────────────────────────────────────
+const DEFAULT_BASE_URL = "http://localhost:5000";
+
+async function getBaseUrl() {
+    return new Promise((resolve) => {
+        if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.sync) {
+            chrome.storage.sync.get(['serverUrl'], (result) => {
+                let url = result.serverUrl || DEFAULT_BASE_URL;
+                url = url.trim().replace(/\/+$/, '');
+                resolve(url);
+            });
+        } else {
+            resolve(DEFAULT_BASE_URL);
+        }
+    });
+}
 
 chrome.runtime.onInstalled.addListener(() => {
     chrome.contextMenus.create({
@@ -14,24 +24,28 @@ chrome.runtime.onInstalled.addListener(() => {
 
 // Central fetcher in background script to bypass PNA/CORS restrictions in popup/content scripts
 async function fetchSimplification(text, mode = 'simplified') {
+    const baseUrl = await getBaseUrl();
     try {
-        const resp = await fetch(`${BASE_URL}/api/simplify`, {
+        const resp = await fetch(`${baseUrl}/api/simplify`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ text, mode })
         });
-        
+
         let data;
         try {
             data = await resp.json();
-        } catch(e) {
-            throw new Error("Invalid response from server. Is the backend running on port 5000?");
+        } catch (e) {
+            throw new Error(`Invalid response from server (${baseUrl}). Ensure your backend is running.`);
         }
-        
+
         if (!resp.ok) throw new Error(data.error || "Server error");
         return data;
     } catch (err) {
         console.error("Fetch error:", err);
+        if (err.message.includes('Failed to fetch') || err.name === 'TypeError') {
+            throw new Error(`Could not connect to backend at ${baseUrl}. Please check your Server URL in extension popup settings.`);
+        }
         throw err;
     }
 }
@@ -49,7 +63,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 chrome.contextMenus.onClicked.addListener((info, tab) => {
     if (info.menuItemId === "simplifyWithLexify") {
         const selectedText = info.selectionText;
-        
+
         // Use background fetcher then inject results
         fetchSimplification(selectedText)
             .then(data => {
